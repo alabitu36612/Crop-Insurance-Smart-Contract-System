@@ -607,3 +607,28 @@
 (define-read-only (get-current-season)
   (mod (/ stacks-block-height u2016) u4)
 )
+
+(define-public (transfer-policy-ownership (policy-id uint) (from-farmer principal) (to-farmer principal))
+  (let ((policy-data (unwrap! (map-get? policies { policy-id: policy-id }) ERR_POLICY_NOT_FOUND)))
+    (begin
+      (asserts! (is-eq (get farmer policy-data) from-farmer) ERR_UNAUTHORIZED)
+      (asserts! (get is-active policy-data) ERR_INVALID_POLICY)
+      (asserts! (not (get claimed policy-data)) ERR_INVALID_POLICY)
+      (asserts! (or (is-eq tx-sender from-farmer) (is-eq contract-caller .policy-marketplace)) ERR_UNAUTHORIZED)
+      
+      (map-set policies
+        { policy-id: policy-id }
+        (merge policy-data { farmer: to-farmer })
+      )
+      
+      (let (
+        (to-policies (default-to { policy-ids: (list) } (map-get? farmer-policies { farmer: to-farmer })))
+        (updated-to-list (unwrap! (as-max-len? (append (get policy-ids to-policies) policy-id) u10) ERR_INVALID_POLICY))
+      )
+        (map-set farmer-policies { farmer: to-farmer } { policy-ids: updated-to-list })
+      )
+      
+      (ok true)
+    )
+  )
+)
